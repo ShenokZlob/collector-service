@@ -1,0 +1,18 @@
+version: "3"
+
+tasks:
+  swag:
+    decs: "generate docs"
+    cmds:
+      - swag init -g app/main.go --output docs
+
+  run:
+    decs: "run service with mongo"
+    cmds:
+      - go mod tidy
+      - |
+        bash -c '
+        docker-compose up mongo -d
+        trap "docker-compose down" EXIT
+        go run app/main.go
+        '

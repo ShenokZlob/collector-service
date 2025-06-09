@@ -1,0 +1,487 @@
+definitions:
+  domain.ResponseErr:
+    properties:
+      message:
+        type: string
+      status:
+        type: integer
+    type: object
+  dto.Card:
+    description: Модель карты с Scryfall ID, именем, URL изображения и количеством
+    properties:
+      card_url:
+        example: https://example.com/black-lotus.jpg
+        type: string
+      count:
+        example: 1
+        type: integer
+      name:
+        example: Black Lotus
+        type: string
+      scryfall_id:
+        example: 12345678-1234-1234-1234-123456789012
+        type: string
+    type: object
+  dto.Collection:
+    description: Модель коллекции с ID и именем
+    properties:
+      id:
+        example: 64a9b66b2db8b91234a6e8e3
+        type: string
+      name:
+        example: My cool collection
+        type: string
+    type: object
+  dto.CreateCollectionRequest:
+    description: Запрос для создания коллекции с указанным именем
+    properties:
+      name:
+        example: My cool collection
+        type: string
+    required:
+    - name
+    type: object
+  dto.ErrorResponse:
+    description: Структура ответа при ошибке
+    properties:
+      message:
+        example: unauthorized
+        type: string
+      status:
+        description: Optional, can be used to indicate HTTP status code
+        type: integer
+    type: object
+  dto.LoginRequest:
+    description: Вход пользователя по email и паролю
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: strongpassword
+        minLength: 6
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  dto.LoginResponse:
+    description: Ответ с JWT-токенами (access и refresh) после логина
+    properties:
+      access_token:
+        example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      expires_at:
+        example: 900
+        type: integer
+    type: object
+  dto.LogoutRequest:
+    description: 'Выход пользователя: инвалидация предоставленного refresh-токена'
+    properties:
+      refresh_token:
+        example: dGhpc19pc19hX3JlZnJlc2hfdG9rZW4=
+        type: string
+    required:
+    - refresh_token
+    type: object
+  dto.LogoutResponse:
+    description: Подтверждение успешного logout
+    properties:
+      message:
+        example: Logout successful
+        type: string
+    type: object
+  dto.RefreshTokenRequest:
+    description: Обновление access-токена по refresh-токену
+    properties:
+      refresh_token:
+        example: dGhpc19pc19hX3JlZnJlc2hfdG9rZW4=
+        type: string
+    required:
+    - refresh_token
+    type: object
+  dto.RefreshTokenResponse:
+    description: Новый access- и refresh-токены после успешного refresh
+    properties:
+      access_token:
+        example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      expires_at:
+        example: 900
+        type: integer
+    type: object
+  dto.RegisterRequest:
+    description: Регистрация пользователя по email и паролю
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      first_name:
+        example: Ivan
+        type: string
+      last_name:
+        example: Ivanov
+        type: string
+      password:
+        example: strongpassword
+        minLength: 6
+        type: string
+    required:
+    - email
+    - first_name
+    - password
+    type: object
+  dto.RegisterResponse:
+    description: Ответ с JWT-токенами (access и refresh)
+    properties:
+      access_token:
+        example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      expires_at:
+        example: 900
+        type: integer
+    type: object
+  dto.RenameCollectionRequest:
+    description: Запрос для изменения названия коллекции
+    properties:
+      name:
+        example: Renamed collection
+        type: string
+    required:
+    - name
+    type: object
+info:
+  contact: {}
+  description: Сервис сбора и анализа данных Collector Ouphe
+  title: Collector Ouphe API
+  version: "1.0"
+paths:
+  /collections:
+    get:
+      description: Получить список коллекций текущего пользователя
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.Collection'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user's collections
+      tags:
+      - Collections
+    post:
+      consumes:
+      - application/json
+      description: Создать новую коллекцию с указанным именем
+      parameters:
+      - description: Название новой коллекции
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateCollectionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.Collection'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create new collection
+      tags:
+      - Collections
+  /collections/{id}:
+    delete:
+      description: Удалить коллекцию по ID
+      parameters:
+      - description: Collection ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete collection
+      tags:
+      - Collections
+    get:
+      description: Получить коллекцию пользователя
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.Collection'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get one user's collection by ID
+      tags:
+      - Collections
+    patch:
+      consumes:
+      - application/json
+      description: Переименовать коллекцию по ID
+      parameters:
+      - description: Collection ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Новое имя коллекции
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RenameCollectionRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            $ref: '#/definitions/dto.Collection'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Rename collection
+      tags:
+      - Collections
+  /collections/{id}/cards:
+    get:
+      description: Получить список карт из коллекции юзера
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.Card'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user's cards in collection
+      tags:
+      - Cards
+    post:
+      description: Добавить карту в коллекцию юзера
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Add a card to user's collection
+      tags:
+      - Cards
+  /collections/{id}/cards/{card_id}:
+    delete:
+      description: Удалить карту из коллекции юзера
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete the card from user's collection
+      tags:
+      - Cards
+    patch:
+      description: Установить количество карт в коллекции юзера
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set card count in user's collection
+      tags:
+      - Cards
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Вход пользователя по email и паролю
+      parameters:
+      - description: Данные для входа
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/domain.ResponseErr'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.ResponseErr'
+      summary: Login user by email
+      tags:
+      - Auth
+  /logout:
+    post:
+      consumes:
+      - application/json
+      description: Выход пользователя и инвалидация refresh токена
+      parameters:
+      - description: Refresh token для выхода
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LogoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/domain.ResponseErr'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.ResponseErr'
+      summary: Logout user
+      tags:
+      - Auth
+  /refresh:
+    post:
+      consumes:
+      - application/json
+      description: Обновление access и refresh токенов
+      parameters:
+      - description: Refresh token
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.RefreshTokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/domain.ResponseErr'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/domain.ResponseErr'
+      summary: Refresh JWT tokens
+      tags:
+      - Auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Регистрация пользователя через Telegram бота
+      parameters:
+      - description: Данные для регистрации
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.RegisterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/domain.ResponseErr'
+      summary: Register telegram user
+      tags:
+      - Auth
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

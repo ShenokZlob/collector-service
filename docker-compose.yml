@@ -1,0 +1,27 @@
+services:
+  mongo:
+    image: mongo:8.0
+    container_name: mongo-coll-serv
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  collector-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: coll-serv
+    env_file:
+      - .env.docker
+    ports:
+      - "8080:8080"
+    # volumes:
+    #   - ./config.toml:/home/appuser/config.toml:ro
+    depends_on:
+      - mongo
+    restart: on-failure
+
+volumes:
+  mongo_data:
