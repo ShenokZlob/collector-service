@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestGenerateAccessToken(t *testing.T) {
@@ -70,17 +71,24 @@ func TestGenerateRefreshToken(t *testing.T) {
 
 type UnitySuite struct {
 	suite.Suite
+	au      *AuthUsecase
+	repMock *mocks.MockAuthRepositorer
 }
 
 func TestUnitySuite(t *testing.T) {
 	suite.Run(t, &UnitySuite{})
 }
 
-func TestRegister(t *testing.T) {
-	// Setup
-	t.Setenv("JWT_SECRET", "testsecret")
-	var repMock mocks.MockAuthRepositorer
+func (us *UnitySuite) SetupSuite() {
+	us.T().Setenv("JWT_SECRET", "testsecret")
+}
 
+func (us *UnitySuite) SetupTest() {
+	us.repMock = &mocks.MockAuthRepositorer{}
+	us.au = NewAuthUsecase(zap.NewNop(), us.repMock)
+}
+
+func (us *UnitySuite) TestRegister() {
 	expectedUser := &domain.User{
 		ID:           "user123",
 		Email:        "email@test.com",
@@ -89,10 +97,8 @@ func TestRegister(t *testing.T) {
 		LastName:     "Testovic",
 	}
 
-	repMock.On("CreateUser", mock.AnythingOfType("*domain.User")).Return(expectedUser, nil)
-	repMock.On("AddToken", expectedUser.ID, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-
-	authUsecase := NewAuthUsecase(zap.NewNop(), &repMock)
+	us.repMock.On("CreateUser", mock.AnythingOfType("*domain.User")).Return(expectedUser, nil)
+	us.repMock.On("AddToken", expectedUser.ID, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	dataTest := &dto.RegisterRequest{
 		Email:     "email@test.com",
@@ -101,10 +107,85 @@ func TestRegister(t *testing.T) {
 		LastName:  "Testovic",
 	}
 
-	accessToken, refreshToken, err := authUsecase.Register(dataTest)
+	accessToken, refreshToken, respErr := us.au.Register(dataTest)
 
-	assert.NoError(t, err)
-	assert.NotEmpty(t, accessToken)
-	assert.NotEmpty(t, refreshToken)
-	repMock.AssertExpectations(t)
+	us.Assert().Nil(respErr)
+	us.Assert().NotEmpty(accessToken)
+	us.Assert().NotEmpty(refreshToken)
+	us.repMock.AssertExpectations(us.T())
+}
+
+func (us *UnitySuite) TestLogin() {
+	password := "testpassword"
+	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	expectedUser := &domain.User{
+		ID:           "user123",
+		Email:        "email@test.com",
+		PasswordHash: string(hash),
+		FirstName:    "Test",
+		LastName:     "Testovic",
+	}
+
+	us.repMock.On("FindByEmail", mock.Anything).Return(expectedUser, nil)
+	us.repMock.On("AddToken", expectedUser.ID, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	data := &dto.LoginRequest{
+		Email:    "email@test.com",
+		Password: password,
+	}
+
+	accessToken, refreshToken, respErr := us.au.Login(data)
+
+	us.Assert().Nil(respErr)
+	us.Assert().NotEmpty(accessToken)
+	us.Assert().NotEmpty(refreshToken)
+	us.repMock.AssertExpectations(us.T())
+}
+
+func (us *UnitySuite) TestRefresh() {
+	expectedUser := &domain.User{
+		ID:           "user123",
+		Email:        "email@test.com",
+		PasswordHash: "",
+		FirstName:    "Test",
+		LastName:     "Testovic",
+	}
+
+	issAt := time.Now()
+	refreshToken, expAt, err := generateRefreshToken(expectedUser.ID, "jtitest", issAt)
+	us.Assert().Equal(expAt, issAt.Add(7*24*time.Hour))
+	us.Require().NoError(err)
+
+	us.repMock.On("GetUser", expectedUser.ID).Return(expectedUser, nil)
+	us.repMock.On("AddToken", expectedUser.ID, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	us.repMock.On("AddToBlackList", mock.Anything).Return(nil)
+
+	accessToken, refreshToken, respErr := us.au.Refresh(refreshToken)
+
+	us.Assert().Nil(respErr)
+	us.Assert().NotEmpty(accessToken)
+	us.Assert().NotEmpty(refreshToken)
+	us.repMock.AssertExpectations(us.T())
+}
+
+func (us *UnitySuite) TestLogout() {
+	expectedUser := &domain.User{
+		ID:           "user123",
+		Email:        "email@test.com",
+		PasswordHash: "",
+		FirstName:    "Test",
+		LastName:     "Testovic",
+	}
+
+	issAt := time.Now()
+	refreshToken, expAt, err := generateRefreshToken(expectedUser.ID, "jtitest", issAt)
+	us.Assert().Equal(expAt, issAt.Add(7*24*time.Hour))
+	us.Require().NoError(err)
+
+	us.repMock.On("AddToBlackList", mock.Anything).Return(nil)
+
+	respErr := us.au.Logout(refreshToken)
+
+	us.Assert().Nil(respErr)
+	us.repMock.AssertExpectations(us.T())
 }
